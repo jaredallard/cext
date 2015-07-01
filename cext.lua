@@ -126,8 +126,8 @@ cext.open = function(this, filesystem)
 
   -- DATA CHECK
   if tostring(fs_length) ~= tostring(this.fs.superblock.nextContents) then
-    print("WARNING: DATA FOUND AFTER BLOCK, DATA LOSS MAY OCCUR")
-    print(fs_length.." ~= "..this.fs.superblock.nextContents)
+    this.print("WARNING: DATA FOUND AFTER BLOCK, DATA LOSS MAY OCCUR")
+    this.print(fs_length.." ~= "..this.fs.superblock.nextContents)
   end
 
   -- parse the inode line.
@@ -283,6 +283,10 @@ cext.write = function(this, filename, data)
     error("fs isn't loaded. load with this:open(fs)")
   end
 
+  if this:exists(filename) == true then
+    this:delete(filename) -- we recreate it.
+  end
+
   local fileLocation = fs.getDir(filename)
   local fileName     = fs.getName(filename)
 
@@ -391,7 +395,7 @@ end
 ]]
 cext.list = function(this, path)
   if this:isDir(path) == false then
-    print("Is not a DIR")
+    this.print("Is not a DIR")
     return nil, "ERRNOTADIR"
   end
 
@@ -439,21 +443,93 @@ end
 --[[
   Check if the file exists
 
-  @return true, or nil
+  @return {boolean} exists
 ]]
 
 cext.exists = function(this, path)
-  if path == "" then
-    canonical_path = this.fs.inodes
-  else
-    canonical_path = this.fs.inodes[path]
-  end
-
-  if canonical_path == nil then
-    return nil
+  if this.fs.inodes[path] == nil then
+    return false
   end
 
   return true
+end
+
+--[[
+  Delete a file
+
+  @return nil
+]]
+cext.delete = function(this, path)
+  if this:exists(path) == false then
+    return nil, "ERRNOTEXIST"
+  end
+
+  if this.fs.inodes[path].isDir == "1" then
+    -- check for files with us as parent, then loop and destroy them as well
+    for i,v in pairs(this.fs.inodes) do
+      if v.parent == path then
+        print("cext: need to remove '"..path.."'")
+      end
+    end
+
+    this.fs.inodes[path] = nil
+    return -- all we do is remove symlink for directories
+  end
+
+  this.print("cext: removing link "..path)
+
+  if this.fs.data_table == nil then
+    this.fs.data_table = string.split(this.fs.data, "\n")
+  end
+
+  local min = this.fs.inodes[path].min-2 -- data is numbered smaller
+  local max = this.fs.inodes[path].max-2
+  local parent = this.fs.inodes[path].parent
+
+  local diff = max-min
+
+  -- reset next block on the filesystem.
+  this.fs.superblock.nextContents = (this.fs.superblock.nextContents - diff)
+
+  -- remove file line
+  print("cext: file is min "..(min).." & max: "..max)
+  print("cext: new nC is ".. this.fs.superblock.nextContents)
+  local i = min
+
+  -- remove the files from a table
+  repeat
+    this.fs.data_table[i] = ""
+    i=i+1
+  until(i == tonumber(max))
+
+  -- rebuild the data table
+  local d = ""
+  for i,v in pairs(this.fs.data_table) do
+    d = d..v.."\n"
+  end
+
+  this.fs.data = tostring(d)
+
+  -- destroy the in memory table
+  this.fs.inodes[path] = nil
+
+  -- check which files will be affected by this line removal
+  for i,v in pairs(this.fs.inodes) do
+    if v ~= tostring(1) then -- no clue?
+      if v.max == nil then
+        v.max = "0"
+      end
+
+      if tonumber(v.max) > tonumber(max) then
+        print("cext: need to shift file "..fs.combine(v.parent, v.filename))
+        print(this.fs.inodes[fs.combine(v.parent, v.filename)].min-(min+3)+2)
+        this.fs.inodes[fs.combine(v.parent, v.filename)].min = this.fs.inodes[fs.combine(v.parent, v.filename)].min-(min+3)+2
+        this.fs.inodes[fs.combine(v.parent, v.filename)].max = this.fs.inodes[fs.combine(v.parent, v.filename)].max-max+2
+      end
+    end
+  end
+
+  return nil
 end
 
 --[[
@@ -477,12 +553,16 @@ end
 fs.delete("/cext/test.fs")
 cext:createFS("/cext/test.fs", 1000)
 cext:open("/cext/test.fs")
-cext:write("nothing", "ignore me data")
+cext:write("nothing", "ignore me data\nstill part of nothing")
 cext:close()
 cext:open("/cext/test.fs")
 cext:write("a/dir/ccdocker", fs.open("/cext/ccdocker", "r").readAll())
 cext:close()
+cext:write("a/dir/ccdocker", "new data")
+cext:write("nothing", "now we\nare\nthree")
+cext:close()
 
+--[[
 if cext:isDir("") then
   print("root is a dir... good")
 else
@@ -500,9 +580,7 @@ local tbl, err = cext:list("a/dir")
 if err then
   print("Err: "..err)
 end
+]]
 
---[[for i,v in pairs(tbl) do
-  print(v)
-end]]
-
-cext:open("/cext/test.fs")
+cext:delete("a")
+cext:close()
