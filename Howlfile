@@ -1,0 +1,8 @@
+--[[
+  Howlfile for ccDocker, thanks most to @SquidDev
+]]
+
+Sources:Main "cext.lua"
+
+Tasks:Clean("clean", "build")
+Tasks:Minify("minify", "cext.lua", "build/cext.min")

@@ -1,3 +1,6 @@
 ccdocker
 *.fs
 .DS_Store
+build
+Howl
+howl
