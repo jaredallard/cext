@@ -119,10 +119,10 @@ cext.open = function(this, filesystem)
   this.fs.superblock.size = superblockSplit[3]
   this.fs.superblock.nextContents = superblockSplit[4]
 
-  -- this.print("superblock.version       = "..tostring(superblockSplit[1]))
-  -- this.print("superblock.inodes        = "..tostring(superblockSplit[2]))
-  -- this.print("superblock.size          = "..tostring(superblockSplit[3]))
-  -- this.print("superblock.nextContents  = "..tostring(superblockSplit[4]))
+  this.print("superblock.version       = "..tostring(superblockSplit[1]))
+  this.print("superblock.inodes        = "..tostring(superblockSplit[2]))
+  this.print("superblock.size          = "..tostring(superblockSplit[3]))
+  this.print("superblock.nextContents  = "..tostring(superblockSplit[4]))
 
   -- DATA CHECK
   if tostring(fs_length) ~= tostring(this.fs.superblock.nextContents) then
@@ -279,8 +279,11 @@ end
     on second param return.
 ]]
 cext.write = function(this, filename, data)
+  if type(this) ~= "table" then
+    error("run this with this:write()")
+  end
   if this.fs == nil then
-    error("fs isn't loaded. load with this:open(fs)")
+    error("fs isn't loaded. load with this:write(fs)")
   end
 
   if this:exists(filename) == true then

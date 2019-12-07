@@ -3,6 +3,12 @@
 ]]
 
 Sources:Main "cext.lua"
+  :Depends "json"
+
+-- Ext apis
+Sources:File "ext/json.lua"
+  :Name "json"
 
 Tasks:Clean("clean", "build")
+Tasks:Combine("combine", Sources, "build/cext", {"clean"}):Verify()
 Tasks:Minify("minify", "cext.lua", "build/cext.min")
